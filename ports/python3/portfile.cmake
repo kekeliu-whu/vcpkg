@@ -248,6 +248,7 @@ else()
         "--with-suffix="
         "--with-system-expat"
         "--disable-test-modules"
+        "--disable-ipv6"
     )
     if(VCPKG_TARGET_IS_OSX)
         list(APPEND OPTIONS "LIBS=-liconv -lintl")
