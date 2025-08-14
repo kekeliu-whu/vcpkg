@@ -1,0 +1,13 @@
+diff --git a/src/google/protobuf/stubs/common.cc b/src/google/protobuf/stubs/common.cc
+index 3313150..870a3cd 100644
+--- a/src/google/protobuf/stubs/common.cc
++++ b/src/google/protobuf/stubs/common.cc
+@@ -21,7 +21,7 @@
+ #define WIN32_LEAN_AND_MEAN  // We only need minimal includes
+ #endif
+ #include <windows.h>
+-#define snprintf _snprintf    // see comment in strutil.cc
++// #define snprintf _snprintf    // see comment in strutil.cc
+ #endif
+ #if defined(__ANDROID__)
+ #include <android/log.h>
