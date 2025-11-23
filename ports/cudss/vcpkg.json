@@ -1,0 +1,8 @@
+{
+  "name": "cudss",
+  "version": "0.7.1",
+  "description": "An optimized, first-generation GPU-accelerated Direct Sparse Solver library for solving linear systems with very sparse matrices.",
+  "homepage": "https://developer.nvidia.com/cudss",
+  "license": null,
+  "supports": "(windows & x64 & !uwp & !xbox) | (linux & x64)"
+}

@@ -9,17 +9,11 @@ endif()
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO ceres-solver/ceres-solver
-    REF 85331393dc0dff09f6fb9903ab0c4bfa3e134b01 #2.2.0
-    SHA512 16d3f4f3524b7532f666c0a626f1c678170698119eff3d914ade2e7cc65f25e644c2eabb618cd5805cba0fd4e08d3f64658a9f480934d8aace4089ec42b3d691
+    REF b92ade3e116cce9ba53a7639daed93e11aebda0d # 2.3.0(beta)
+    SHA512 83e7febb96ca3a74fa0b00c68a6e6cc26f729719a5304f4aacf582c94141fb2b28dfe0526708049cca6c2b88960963772827cc077a9240da7802381e690ddc74
     HEAD_REF master
     PATCHES
         0001_cmakelists_fixes.patch
-        0002_use_glog_target.patch
-        0003_fix_exported_ceres_config.patch
-        0004_remove_broken_fake_ba_jac.patch
-        0005_find_package_required.patch
-        0006_use_official_suitesparse_config.patch
-        0007_use_metis_config.patch
 )
 
 file(REMOVE "${SOURCE_PATH}/cmake/FindGflags.cmake")
@@ -34,7 +28,6 @@ vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
         "suitesparse"       SUITESPARSE
         "lapack"            LAPACK
         "eigensparse"       EIGENSPARSE
-        "tools"             GFLAGS
         "cuda"              CUDA
 )
 if(VCPKG_TARGET_IS_UWP)
@@ -48,6 +41,7 @@ endforeach()
 set(USE_CUDA OFF)
 if("cuda" IN_LIST FEATURES)
     set(USE_CUDA ON)
+    set(CUDA_ARCHITECTURES "61;70;75;80;86;89;120")
 endif()
 
 set(TARGET_OPTIONS )
@@ -61,6 +55,7 @@ vcpkg_cmake_configure(
     OPTIONS
         ${FEATURE_OPTIONS}
         ${TARGET_OPTIONS}
+        "-DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHITECTURES}"
         -DEXPORT_BUILD_DIR=ON
         -DBUILD_BENCHMARKS=OFF
         -DBUILD_EXAMPLES=OFF

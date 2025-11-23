@@ -1,56 +1,191 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 8e49c19e..f8c61d92 100644
+index 754f069b..0f927b9e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -430,28 +430,7 @@ if (MINIGLOG)
-   mark_as_advanced(FORCE GLOG_INCLUDE_DIR
-                          GLOG_LIBRARY)
- else (MINIGLOG)
--  unset(MINIGLOG_MAX_LOG_LEVEL CACHE)
--  # Don't search with REQUIRED so that configuration continues if not found and
--  # we can output an error messages explaining MINIGLOG option.
--  find_package(Glog)
--  if (NOT GLOG_FOUND)
--    message(FATAL_ERROR "Can't find Google Log (glog). Please set either: "
--      "glog_DIR (newer CMake built versions of glog) or GLOG_INCLUDE_DIR & "
--      "GLOG_LIBRARY or enable MINIGLOG option to use minimal glog "
--      "implementation.")
--  endif(NOT GLOG_FOUND)
--  # By default, assume gflags was found, updating the message if it was not.
--  set(GLOG_GFLAGS_DEPENDENCY_MESSAGE
--    " Assuming glog was built with gflags support as gflags was found. "
--    "This will make gflags a public dependency of Ceres.")
--  if (NOT gflags_FOUND)
--    set(GLOG_GFLAGS_DEPENDENCY_MESSAGE
--      " Assuming glog was NOT built with gflags support as gflags was "
--      "not found.  If glog was built with gflags, please set the "
--      "gflags search locations such that it can be found by Ceres.  "
--      "Otherwise, Ceres may fail to link due to missing gflags symbols.")
--  endif(NOT gflags_FOUND)
--  message("-- Found Google Log (glog)." ${GLOG_GFLAGS_DEPENDENCY_MESSAGE})
-+  find_package(Glog REQUIRED)
- endif (MINIGLOG)
+@@ -261,7 +261,7 @@ if (USE_CUDA)
+     # elsewhere, emulate the effects of FindCUDAToolkit locally in terms of the
+     # expected CMake imported targets and defined variables. This can be removed
+     # from as soon as the min CMake version is >= 3.17.
+-    find_package(CUDA QUIET)
++    find_package(CUDA REQUIRED)
+     if (CUDA_FOUND)
+       message("-- Found CUDA version ${CUDA_VERSION} installed in: "
+         "${CUDA_TOOLKIT_ROOT_DIR} via legacy (< 3.17) CMake module. "
+@@ -291,40 +291,44 @@ if (USE_CUDA)
+       update_cache_variable(USE_CUDA OFF)
+     endif (CUDA_FOUND)
+   else (CMAKE_VERSION VERSION_LESS 3.17)
+-    find_package(CUDAToolkit QUIET)
++    find_package(CUDAToolkit REQUIRED)
+     if (CUDAToolkit_FOUND)
+       message("-- Found CUDA version ${CUDAToolkit_VERSION} installed in: "
+         "${CUDAToolkit_TARGET_DIR}")
+       set(CUDAToolkit_DEPENDENCY
+         "find_dependency(CUDAToolkit ${CUDAToolkit_VERSION})")
+       enable_language(CUDA)
+-      if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+-        set(CMAKE_CUDA_ARCHITECTURES "")
+-        if (CUDAToolkit_VERSION VERSION_LESS "13.0")
+-          # Support Maxwell GPUs.
+-	  list(APPEND CMAKE_CUDA_ARCHITECTURES "50")
+-          if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "8.0")
+-            # Support Pascal GPUs.
+-            list(APPEND CMAKE_CUDA_ARCHITECTURES "60")
+-          endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "8.0")
+-          if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "9.0")
+-            # Support Volta GPUs.
+-            list(APPEND CMAKE_CUDA_ARCHITECTURES "70")
+-          endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "9.0")
+-        endif(CUDAToolkit_VERSION VERSION_LESS "13.0")
+-        if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "10.0")
+-          # Support Turing  GPUs.
+-          list(APPEND CMAKE_CUDA_ARCHITECTURES "75")
+-        endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "10.0")
+-        if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.0")
+-          # Support Ampere GPUs.
+-          list(APPEND CMAKE_CUDA_ARCHITECTURES "80")
+-        endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.0")
+-        if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.8")
+-          # Support Hopper GPUs.
+-          list(APPEND CMAKE_CUDA_ARCHITECTURES "90")
+-        endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.8")
+-        message("-- Setting CUDA Architecture to ${CMAKE_CUDA_ARCHITECTURES}")
++      if (DEFINED CMAKE_CUDA_ARCHITECTURES)
++        message("-- Using user-specified CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
++      else(DEFINED CMAKE_CUDA_ARCHITECTURES)
++        if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
++          set(CMAKE_CUDA_ARCHITECTURES "")
++          if (CUDAToolkit_VERSION VERSION_LESS "13.0")
++            # Support Maxwell GPUs.
++            list(APPEND CMAKE_CUDA_ARCHITECTURES "50")
++            if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "8.0")
++              # Support Pascal GPUs.
++              list(APPEND CMAKE_CUDA_ARCHITECTURES "60")
++            endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "8.0")
++            if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "9.0")
++              # Support Volta GPUs.
++              list(APPEND CMAKE_CUDA_ARCHITECTURES "70")
++            endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "9.0")
++          endif(CUDAToolkit_VERSION VERSION_LESS "13.0")
++          if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "10.0")
++            # Support Turing  GPUs.
++            list(APPEND CMAKE_CUDA_ARCHITECTURES "75")
++          endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "10.0")
++          if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.0")
++            # Support Ampere GPUs.
++            list(APPEND CMAKE_CUDA_ARCHITECTURES "80")
++          endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.0")
++          if (CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.8")
++            # Support Hopper GPUs.
++            list(APPEND CMAKE_CUDA_ARCHITECTURES "90")
++          endif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.8")
++          message("-- Setting CUDA Architecture to ${CMAKE_CUDA_ARCHITECTURES}")
++        endif()
+       endif()
  
- if (NOT SCHUR_SPECIALIZATIONS)
-@@ -466,7 +445,7 @@ endif (NOT CUSTOM_BLAS)
+       if (USE_CUDA STREQUAL "static")
+@@ -346,7 +350,7 @@ if (USE_CUDA)
+     CUDA::cusolver${CERES_CUDA_TARGET_SUFFIX}
+     CUDA::cusparse${CERES_CUDA_TARGET_SUFFIX})
  
- if (BUILD_BENCHMARKS)
-   # Version 1.3 was first to provide import targets
--  find_package(benchmark 1.3 QUIET)
-+  find_package(benchmark CONFIG REQUIRED)
-   if (benchmark_FOUND)
-      message("-- Found Google benchmark library. Building Ceres benchmarks.")
-   else()
-@@ -722,12 +705,6 @@ install(FILES "${Ceres_BINARY_DIR}/CeresConfig-install.cmake"
-         DESTINATION ${RELATIVE_CMAKECONFIG_INSTALL_DIR})
- install(FILES "${Ceres_BINARY_DIR}/CeresConfigVersion.cmake"
-         DESTINATION ${RELATIVE_CMAKECONFIG_INSTALL_DIR})
--if (GLOG_FOUND AND NOT FOUND_INSTALLED_GLOG_CMAKE_CONFIGURATION)
--  # Version of glog detected was not built with CMake, install our glog module
--  # file to enable detection in CeresConfig.
--  install(FILES "${Ceres_SOURCE_DIR}/cmake/FindGlog.cmake"
--          DESTINATION ${RELATIVE_CMAKECONFIG_INSTALL_DIR})
--endif()
+-  find_package(cudss CONFIG)
++  find_package(cudss REQUIRED)
+   if (cudss_FOUND)
+     set(cudss_DEPENDENCY "find_dependency(cudss ${cudss_VERSION})")
+     list(APPEND CERES_CUDA_LIBRARIES cudss${CERES_CUDA_TARGET_SUFFIX})
+@@ -364,7 +368,7 @@ else (USE_CUDA)
+ endif (USE_CUDA)
  
- if (PROVIDE_UNINSTALL_TARGET)
-   # Create an uninstall target to remove all installed files.
+ if (LAPACK)
+-  find_package(LAPACK QUIET)
++  find_package(LAPACK REQUIRED)
+   if (LAPACK_FOUND)
+     message("-- Found LAPACK library: ${LAPACK_LIBRARIES}")
+   else (LAPACK_FOUND)
+@@ -386,8 +390,9 @@ if (SUITESPARSE)
+   # built with SuiteSparse support.
+ 
+   # Check for SuiteSparse and dependencies.
+-  find_package(SuiteSparse 4.5.6 COMPONENTS CHOLMOD SPQR
+-    OPTIONAL_COMPONENTS Partition)
++  find_package(CHOLMOD REQUIRED)
++  find_package(SPQR REQUIRED)
++  set(SuiteSparse_FOUND 1)
+   if (SuiteSparse_FOUND)
+     set(SuiteSparse_DEPENDENCY "find_dependency(SuiteSparse ${SuiteSparse_VERSION})")
+     # By default, if all of SuiteSparse's dependencies are found, Ceres is
+@@ -400,11 +405,11 @@ if (SUITESPARSE)
+     else()
+       message("-- CHOLMOD supports single precision factorization")
+     endif()
+-    if (SuiteSparse_NO_CMAKE OR NOT SuiteSparse_DIR)
++    if (0)
+       install(FILES ${Ceres_SOURCE_DIR}/cmake/FindSuiteSparse.cmake
+                     ${Ceres_SOURCE_DIR}/cmake/FindMETIS.cmake
+               DESTINATION ${RELATIVE_CMAKECONFIG_INSTALL_DIR})
+-    endif (SuiteSparse_NO_CMAKE OR NOT SuiteSparse_DIR)
++    endif (0)
+   else (SuiteSparse_FOUND)
+     # Disable use of SuiteSparse if it cannot be found and continue.
+     message("-- Did not find all SuiteSparse dependencies, disabling "
+@@ -422,7 +427,7 @@ if (NOT SuiteSparse_Partition_FOUND)
+ endif (NOT SuiteSparse_Partition_FOUND)
+ 
+ if (EIGENMETIS)
+-  find_package (METIS)
++  find_package (METIS REQUIRED)
+   if (METIS_FOUND)
+     # Since METIS is a private dependency of Ceres, it requires access to the
+     # link-only METIS::METIS target to avoid undefined linker errors in projects
+@@ -445,7 +450,7 @@ else (EIGENMETIS)
+ endif (EIGENMETIS)
+ 
+ if (ACCELERATESPARSE)
+-  find_package(AccelerateSparse)
++  find_package(AccelerateSparse REQUIRED)
+   if (AccelerateSparse_FOUND)
+     message("-- Found Apple's Accelerate framework with sparse solvers, "
+       "building with Accelerate sparse support.")
+diff --git a/cmake/CeresConfig.cmake.in b/cmake/CeresConfig.cmake.in
+index 1d0b012a..d1ce1459 100644
+--- a/cmake/CeresConfig.cmake.in
++++ b/cmake/CeresConfig.cmake.in
+@@ -168,7 +168,10 @@ set(CERES_VERSION @CERES_VERSION@)
+ include(CMakeFindDependencyMacro)
+ # Optional dependencies
+ @METIS_DEPENDENCY@
+-@SuiteSparse_DEPENDENCY@
++if (@SUITESPARSE@)
++  find_dependency(CHOLMOD)
++  find_dependency(SPQR)
++endif()
+ @CUDAToolkit_DEPENDENCY@
+ @cudss_DEPENDENCY@
+ @Threads_DEPENDENCY@
+diff --git a/internal/ceres/CMakeLists.txt b/internal/ceres/CMakeLists.txt
+index 29c14d1b..37674ec7 100644
+--- a/internal/ceres/CMakeLists.txt
++++ b/internal/ceres/CMakeLists.txt
+@@ -100,9 +100,10 @@ set_source_files_properties(${CERES_INTERNAL_SCHUR_FILES} PROPERTIES
+ 
+ if (SUITESPARSE AND SuiteSparse_FOUND)
+   # Define version information for use in Solver::FullReport.
+-  add_definitions(-DCERES_SUITESPARSE_VERSION="${SuiteSparse_VERSION}")
+-  list(APPEND CERES_LIBRARY_PRIVATE_DEPENDENCIES SuiteSparse::CHOLMOD
+-    SuiteSparse::SPQR)
++  add_definitions(-DCERES_SUITESPARSE_VERSION="${SUITESPARSE_CONFIG_VERSION}")
++  list(APPEND CERES_LIBRARY_PRIVATE_DEPENDENCIES
++      $<IF:$<TARGET_EXISTS:SuiteSparse::CHOLMOD>,SuiteSparse::CHOLMOD,SuiteSparse::CHOLMOD_static>
++      $<IF:$<TARGET_EXISTS:SuiteSparse::SPQR>,SuiteSparse::SPQR,SuiteSparse::SPQR_static>)
+ 
+   if (SuiteSparse_Partition_FOUND)
+     list(APPEND CERES_LIBRARY_PRIVATE_DEPENDENCIES SuiteSparse::Partition)
+@@ -112,7 +113,7 @@ endif (SUITESPARSE AND SuiteSparse_FOUND)
+ if (SuiteSparse_Partition_FOUND OR EIGENMETIS)
+   # Define version information for use in Solver::FullReport.
+   add_definitions(-DCERES_METIS_VERSION="${METIS_VERSION}")
+-  list(APPEND CERES_LIBRARY_PRIVATE_DEPENDENCIES METIS::METIS)
++  list(APPEND CERES_LIBRARY_PRIVATE_DEPENDENCIES metis)
+ endif (SuiteSparse_Partition_FOUND OR EIGENMETIS)
+ 
+ if (ACCELERATESPARSE AND AccelerateSparse_FOUND)

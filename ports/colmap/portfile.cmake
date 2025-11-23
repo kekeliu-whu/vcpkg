@@ -1,15 +1,19 @@
 # Update both, literally.
-set(COLMAP_REF 3.11.1 "682ea9ac4020a143047758739259b3ff04dabe8d")
+
+set(GIT_COMMIT_ID_USER_DEFINE "eee1d07e59680192a38788e15fd99ca113a31db9")
+
+set(COLMAP_REF 3.12.666 ${GIT_COMMIT_ID_USER_DEFINE})
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO colmap/colmap
-    REF "${VERSION}"
-    SHA512 1260db4346cc33c6c35efdee0157450fccef67dbc9de876fdc997c7cb90daec716e5ccec97df0a77e3e8686f43ec79f2c0a1523ea12eca2ee158347cb52dea48
+    REF ${GIT_COMMIT_ID_USER_DEFINE}
+    SHA512 8ffb6df5f5e59759d614bf1af16bf9012b9132f787c21a9bafcac0252b3ffd285156b0a124540bdafbdbd02c3161ebbd5c229f132fba315da4ffdca6c29d5795
     HEAD_REF main
     PATCHES
         no-glu.diff
-        fix-flann.patch
+        # fix-flann.patch
+        fix-colmap2720.patch
 )
 
 if (NOT TRIPLET_SYSTEM_ARCH STREQUAL "x64" AND ("cuda" IN_LIST FEATURES OR "cuda-redist" IN_LIST FEATURES))
@@ -39,7 +43,7 @@ set(OPENMP_ENABLED ON)
 
 if("cuda" IN_LIST FEATURES)
     set(CUDA_ENABLED ON)
-    set(CUDA_ARCHITECTURES "native")
+    set(CUDA_ARCHITECTURES "61;70;75;80;86;89;120")
 endif()
 
 if("cuda-redist" IN_LIST FEATURES)
@@ -68,7 +72,7 @@ vcpkg_cmake_configure(
     DISABLE_PARALLEL_CONFIGURE
     OPTIONS
         -DCUDA_ENABLED=${CUDA_ENABLED}
-        -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHITECTURES}
+        "-DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHITECTURES}"
         -DGUI_ENABLED=${GUI_ENABLED}
         -DTESTS_ENABLED=${TESTS_ENABLED}
         -DGIT_COMMIT_ID=${GIT_COMMIT_ID}
@@ -76,6 +80,7 @@ vcpkg_cmake_configure(
         -DOPENMP_ENABLED=${OPENMP_ENABLED}
         -DCGAL_ENABLED=${CGAL_ENABLED}
         -DFETCH_POSELIB=OFF
+        -DFETCH_FAISS=OFF
 )
 
 vcpkg_cmake_install()

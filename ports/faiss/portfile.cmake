@@ -1,11 +1,11 @@
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO facebookresearch/faiss
-    REF "v${VERSION}"
-    SHA512 38d4215e3e019915d8b367ff0e8d14901b1495f6f45b835e9248276567a422b0370baab6bd887045442dd1e268b7fe7c347107162e66bb3ec6b1a53be4b2e441
+    REPO kekeliu-whu/faiss
+    REF dbb54d2e1f819d013f5386eafcfa76fea8157d80
+    SHA512 2e6f8ae9043161e97182d0e606b128055ceebec40ae79089e23672caa9238d7c9231d131e4b1effc379fe2b27d31fea6a5236e8e6cd3c8345a32eebbef704bc6
     HEAD_REF master
     PATCHES
-        fix-dependencies.patch
+        # fix-dependencies.patch
 )
 
 vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
@@ -25,6 +25,7 @@ vcpkg_cmake_configure(
         ${FEATURE_OPTIONS}
         -DFAISS_ENABLE_PYTHON=OFF  # Requires SWIG
         -DBUILD_TESTING=OFF
+        "-DCMAKE_CUDA_ARCHITECTURES=61;70;75;80;86;89;120"
 )
 
 vcpkg_cmake_install()

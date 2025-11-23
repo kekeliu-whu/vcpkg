@@ -1637,8 +1637,8 @@
       "port-version": 1
     },
     "ceres": {
-      "baseline": "2.2.0",
-      "port-version": 2
+      "baseline": "2.3.0",
+      "port-version": 1
     },
     "cfitsio": {
       "baseline": "3.49",
@@ -1873,8 +1873,8 @@
       "port-version": 11
     },
     "colmap": {
-      "baseline": "3.11.1",
-      "port-version": 3
+      "baseline": "3.12.666",
+      "port-version": 0
     },
     "color-console": {
       "baseline": "2022-03-20",
@@ -2219,6 +2219,10 @@
     "cudnn": {
       "baseline": "7.6.5",
       "port-version": 16
+    },
+    "cudss": {
+      "baseline": "0.7.1",
+      "port-version": 0
     },
     "cunit": {
       "baseline": "2.1.3",
@@ -2765,7 +2769,7 @@
       "port-version": 2
     },
     "faiss": {
-      "baseline": "1.8.0",
+      "baseline": "1.12.666",
       "port-version": 0
     },
     "fakeit": {
