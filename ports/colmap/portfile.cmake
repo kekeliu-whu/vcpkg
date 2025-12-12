@@ -1,19 +1,15 @@
 # Update both, literally.
-
-set(GIT_COMMIT_ID_USER_DEFINE "eee1d07e59680192a38788e15fd99ca113a31db9")
-
-set(COLMAP_REF 3.12.666 ${GIT_COMMIT_ID_USER_DEFINE})
+set(COLMAP_REF 3.13.0 "0b31f98133b470eae62811b557dc2bcff1e4f9a5")
 
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO colmap/colmap
-    REF ${GIT_COMMIT_ID_USER_DEFINE}
-    SHA512 8ffb6df5f5e59759d614bf1af16bf9012b9132f787c21a9bafcac0252b3ffd285156b0a124540bdafbdbd02c3161ebbd5c229f132fba315da4ffdca6c29d5795
+    REF "${VERSION}"
+    SHA512 a6de525e98d1a22f180d3148a5282814a6d5dc4e407d4b3b37d217e20b0c6d1511e4b1c0bdaaf0f6f00dcc4386c3160f7de8b6310b9bdd99f65c74fb3531c2c6
     HEAD_REF main
     PATCHES
         no-glu.diff
-        # fix-flann.patch
-        fix-colmap2720.patch
+        fix-colmap.patch
 )
 
 if (NOT TRIPLET_SYSTEM_ARCH STREQUAL "x64" AND ("cuda" IN_LIST FEATURES OR "cuda-redist" IN_LIST FEATURES))
@@ -37,7 +33,6 @@ endforeach()
 
 set(CUDA_ENABLED OFF)
 set(GUI_ENABLED OFF)
-set(TESTS_ENABLED OFF)
 set(CGAL_ENABLED OFF)
 set(OPENMP_ENABLED ON)
 
@@ -55,10 +50,6 @@ if("gui" IN_LIST FEATURES)
     set(GUI_ENABLED ON)
 endif()
 
-if("tests" IN_LIST FEATURES)
-    set(TESTS_ENABLED ON)
-endif()
-
 if("cgal" IN_LIST FEATURES)
     set(CGAL_ENABLED ON)
 endif()
@@ -74,11 +65,11 @@ vcpkg_cmake_configure(
         -DCUDA_ENABLED=${CUDA_ENABLED}
         "-DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHITECTURES}"
         -DGUI_ENABLED=${GUI_ENABLED}
-        -DTESTS_ENABLED=${TESTS_ENABLED}
         -DGIT_COMMIT_ID=${GIT_COMMIT_ID}
         -DGIT_COMMIT_DATE=${COLMAP_GIT_COMMIT_DATE}
         -DOPENMP_ENABLED=${OPENMP_ENABLED}
         -DCGAL_ENABLED=${CGAL_ENABLED}
+        -DTESTS_ENABLED=OFF
         -DFETCH_POSELIB=OFF
         -DFETCH_FAISS=OFF
 )

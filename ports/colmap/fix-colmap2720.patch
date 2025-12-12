@@ -1,7 +1,18 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index ce489962..eb1d858c 100644
+index 160a6115..d4c3d6ec 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
+@@ -51,8 +51,8 @@ option(CGAL_ENABLED "Whether to enable the CGAL library" ON)
+ option(LSD_ENABLED "Whether to enable the LSD library" ON)
+ option(DOWNLOAD_ENABLED "Whether to enable (automatic) download of resources (requires Curl/OpenSSL)" ON)
+ option(UNINSTALL_ENABLED "Whether to create a target to 'uninstall' colmap" ON)
+-option(FETCH_POSELIB "Whether to consume PoseLib using FetchContent or find_package" ON)
+-option(FETCH_FAISS "Whether to consume faiss using FetchContent or find_package" ON)
++option(FETCH_POSELIB "Whether to consume PoseLib using FetchContent or find_package" OFF)
++option(FETCH_FAISS "Whether to consume faiss using FetchContent or find_package" OFF)
+ option(ALL_SOURCE_TARGET "Whether to create a target for all source files (for Visual Studio / XCode development)" OFF)
+ 
+ # Disables default features, as we specify each required feature manually below.
 @@ -144,10 +144,8 @@ if(IS_MSVC)
      # Enable object level parallel builds in Visual Studio.
      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
@@ -15,8 +26,154 @@ index ce489962..eb1d858c 100644
  endif()
  
  if(IS_GNU)
+diff --git a/src/colmap/retrieval/visual_index.cc b/src/colmap/retrieval/visual_index.cc
+index 71b11bf0..912e6c4f 100644
+--- a/src/colmap/retrieval/visual_index.cc
++++ b/src/colmap/retrieval/visual_index.cc
+@@ -37,12 +37,17 @@
+ #include "colmap/util/threading.h"
+ 
+ #include <fstream>
++#include <sstream>
+ 
+ #include <Eigen/Core>
+ #include <boost/heap/fibonacci_heap.hpp>
+ #include <faiss/Clustering.h>
+ #include <faiss/IndexFlat.h>
+ #include <faiss/IndexIVF.h>
++#include <faiss/gpu/GpuCloner.h>
++#include <faiss/gpu/GpuClonerOptions.h>
++#include <faiss/gpu/GpuIndexIVFFlat.h>
++#include <faiss/gpu/StandardGpuResources.h>
+ #include <faiss/index_factory.h>
+ #include <faiss/index_io.h>
+ #include <omp.h>
+@@ -51,21 +56,22 @@ namespace colmap {
+ namespace retrieval {
+ namespace {
+ 
+-std::unique_ptr<faiss::IndexIVF> BuildFaissIndex(
++std::mutex g_gpu_mutex;
++
++std::unique_ptr<faiss::gpu::GpuIndexIVFFlat> BuildFaissIndex(
+     const VisualIndex::BuildOptions& options,
+     const Eigen::RowMajorMatrixXf& visual_words) {
+   const int64_t num_centroids = std::min<int64_t>(
+       visual_words.rows(), 2 * std::sqrt(visual_words.rows()));
+-  const int64_t spectral_hash_dim =
+-      std::min<int64_t>(visual_words.rows(), visual_words.cols() / 2);
+   std::ostringstream index_type;
+-  index_type << "IVF" << num_centroids << ",ITQ" << spectral_hash_dim << ",SH";
++  index_type << "IVF" << num_centroids << ",Flat";
+   VLOG(2) << "Training " << index_type.str()
+-          << " search index for visual words";
++          << " search index for visual words on GPU";
+   const auto index_factory_verbose = faiss::index_factory_verbose;
+   faiss::index_factory_verbose = VLOG_IS_ON(3);
+-  auto index = std::unique_ptr<faiss::IndexIVF>(dynamic_cast<faiss::IndexIVF*>(
+-      faiss::index_factory(visual_words.cols(), index_type.str().c_str())));
++  auto cpu_index =
++      std::unique_ptr<faiss::IndexIVF>(dynamic_cast<faiss::IndexIVF*>(
++          faiss::index_factory(visual_words.cols(), index_type.str().c_str())));
+   faiss::index_factory_verbose = index_factory_verbose;
+ 
+ #pragma omp parallel num_threads(1)
+@@ -77,11 +83,20 @@ std::unique_ptr<faiss::IndexIVF> BuildFaissIndex(
+     omp_set_max_active_levels(1);
+ #endif
+ 
+-    index->train(visual_words.rows(), visual_words.data());
+-    index->add(visual_words.rows(), visual_words.data());
++    cpu_index->train(visual_words.rows(), visual_words.data());
++    cpu_index->add(visual_words.rows(), visual_words.data());
+   }
+ 
+-  return index;
++  faiss::gpu::StandardGpuResources gpu_resources;
++  faiss::gpu::GpuClonerOptions cloner_options;
++  cloner_options.useFloat16 = false;
++
++  auto gpu_index =
++      dynamic_cast<faiss::gpu::GpuIndexIVFFlat*>(faiss::gpu::index_cpu_to_gpu(
++          &gpu_resources, 0, cpu_index.release(), &cloner_options));
++  THROW_CHECK_NOTNULL(gpu_index);
++
++  return std::unique_ptr<faiss::gpu::GpuIndexIVFFlat>(gpu_index);
+ }
+ 
+ template <int kDescDim = 128, int kEmbeddingDim = 64>
+@@ -456,8 +471,16 @@ class FaissVisualIndex : public VisualIndex {
+ #endif
+     THROW_CHECK_NOTNULL(fin);
+     fseek(fin, offset, SEEK_SET);
+-    index_ = std::unique_ptr<faiss::IndexIVF>(dynamic_cast<faiss::IndexIVF*>(
+-        THROW_CHECK_NOTNULL(faiss::read_index(fin))));
++
++    faiss::Index* cpu_index = faiss::read_index(fin);
++    THROW_CHECK_NOTNULL(cpu_index);
++    faiss::gpu::StandardGpuResources gpu_resources;
++    faiss::gpu::GpuClonerOptions opts;
++    faiss::gpu::GpuIndexIVFFlat* gpu_index =
++        dynamic_cast<faiss::gpu::GpuIndexIVFFlat*>(
++            faiss::gpu::index_cpu_to_gpu(&gpu_resources, 0, cpu_index, &opts));
++    index_ = std::unique_ptr<faiss::gpu::GpuIndexIVFFlat>(gpu_index);
++
+     offset = ftell(fin);
+     fclose(fin);
+ 
+@@ -496,7 +519,10 @@ class FaissVisualIndex : public VisualIndex {
+       fout = fopen(path.c_str(), "ab");
+ #endif
+       THROW_CHECK_NOTNULL(fout);
+-      faiss::write_index(index_.get(), fout);
++      std::unique_ptr<faiss::Index> cpu_index(
++          faiss::gpu::index_gpu_to_cpu(index_.get()));
++      THROW_CHECK_NOTNULL(cpu_index);
++      faiss::write_index(cpu_index.get(), fout);
+       fclose(fout);
+     }
+ 
+@@ -526,8 +552,17 @@ class FaissVisualIndex : public VisualIndex {
+     clustering.nredo = options.num_rounds;
+     clustering.verbose = VLOG_IS_ON(3);
+ 
+-    faiss::IndexFlatL2 index(kDescDim);
+-    clustering.train(descriptors.rows(), descriptors.data(), index);
++    // ---------- GPU index ----------
++    faiss::gpu::StandardGpuResources gpu_res;
++    gpu_res.noTempMemory();
++
++    faiss::gpu::GpuIndexFlatConfig config;
++    config.device = 0;
++    config.useFloat16 = false;
++
++    faiss::gpu::GpuIndexFlatL2 gpu_index(&gpu_res, kDescDim, config);
++
++    clustering.train(descriptors.rows(), descriptors.data(), gpu_index);
+ 
+     VLOG(2) << "Quantized into " << options.num_visual_words
+             << " visual words with error "
+@@ -603,6 +638,8 @@ class FaissVisualIndex : public VisualIndex {
+       omp_set_max_active_levels(1);
+ #endif
+ 
++      std::lock_guard<std::mutex> lock(g_gpu_mutex);
++
+       index_->search(descriptors.rows(),
+                      descriptors.data(),
+                      num_neighbors,
+@@ -615,8 +652,7 @@ class FaissVisualIndex : public VisualIndex {
+   }
+ 
+   // The search structure on the quantized descriptor space.
+-  std::unique_ptr<faiss::IndexIVF> index_;
+-  std::unique_ptr<faiss::Index> quantizer_;
++  std::unique_ptr<faiss::gpu::GpuIndexIVFFlat> index_;
+ 
+   // The inverted index of the database.
+   InvertedIndexType inverted_index_;
 diff --git a/src/colmap/scene/database_sqlite.cc b/src/colmap/scene/database_sqlite.cc
-index ac564f71..c7f6f770 100644
+index 0c13dad1..27c9e1ec 100644
 --- a/src/colmap/scene/database_sqlite.cc
 +++ b/src/colmap/scene/database_sqlite.cc
 @@ -426,7 +426,7 @@ class SqliteDatabase : public Database {
@@ -29,7 +186,7 @@ index ac564f71..c7f6f770 100644
      } catch (...) {
        SQLITE3_CALL(sqlite3_close_v2(database->database_));
 diff --git a/src/colmap/sensor/models.h b/src/colmap/sensor/models.h
-index a32a2740..d9715d02 100644
+index 997a3eb0..ab5b3d4a 100644
 --- a/src/colmap/sensor/models.h
 +++ b/src/colmap/sensor/models.h
 @@ -83,19 +83,21 @@ namespace colmap {
@@ -67,7 +224,7 @@ index a32a2740..d9715d02 100644
  );
  
  #ifndef CAMERA_MODEL_DEFINITIONS
-@@ -149,7 +151,9 @@ MAKE_ENUM_CLASS_OVERLOAD_STREAM(CameraModelId,
+@@ -151,7 +153,9 @@ MAKE_ENUM_CLASS_OVERLOAD_STREAM(CameraModelId,
    CAMERA_MODEL_CASE(FullOpenCVCameraModel)          \
    CAMERA_MODEL_CASE(FOVCameraModel)                 \
    CAMERA_MODEL_CASE(ThinPrismFisheyeCameraModel)    \
@@ -78,7 +235,7 @@ index a32a2740..d9715d02 100644
  #endif
  
  #ifndef CAMERA_MODEL_SWITCH_CASES
-@@ -322,6 +326,17 @@ struct OpenCVCameraModel : public BaseCameraModel<OpenCVCameraModel> {
+@@ -333,6 +337,17 @@ struct OpenCVCameraModel : public BaseCameraModel<OpenCVCameraModel> {
    CAMERA_MODEL_DEFINITIONS(CameraModelId::kOpenCV, "OPENCV", 2, 2, 4)
  };
  
@@ -96,7 +253,7 @@ index a32a2740..d9715d02 100644
  // OpenCV fish-eye camera model.
  //
  // Based on the pinhole camera model. Additionally models radial distortion
-@@ -1061,6 +1076,186 @@ void OpenCVCameraModel::Distortion(
+@@ -1074,6 +1089,190 @@ void OpenCVCameraModel::Distortion(
    *dv = v * radial + T(2) * p2 * uv + p1 * (r2 + T(2) * v2);
  }
  
@@ -126,19 +283,23 @@ index a32a2740..d9715d02 100644
 +
 +template <typename T>
 +bool SimpleOpenCVCameraModel::ImgFromCam(
-+    const T* params, T u, T v, T w, T* x, T* y) {
++    const T* params, const T& u, const T& v, const T& w, T* x, T* y) {
++  if (w < std::numeric_limits<T>::epsilon()) {
++    return false;
++  }
++
 +  const T f = params[0];
 +  const T c1 = params[1];
 +  const T c2 = params[2];
 +
-+  u /= w;
-+  v /= w;
++  const T uu = u / w;
++  const T vv = v / w;
 +
 +  // Distortion
 +  T du, dv;
-+  Distortion(&params[3], u, v, &du, &dv);
-+  *x = u + du;
-+  *y = v + dv;
++  Distortion(&params[3], uu, vv, &du, &dv);
++  *x = uu + du;
++  *y = vv + dv;
 +
 +  // Transform to image coordinates
 +  *x = f * *x + c1;
@@ -162,7 +323,7 @@ index a32a2740..d9715d02 100644
 +
 +template <typename T>
 +void SimpleOpenCVCameraModel::Distortion(
-+    const T* extra_params, const T u, const T v, T* du, T* dv) {
++    const T* extra_params, const T& u, const T& v, T* du, T* dv) {
 +  const T k1 = extra_params[0];
 +  const T k2 = extra_params[1];
 +  const T p1 = extra_params[2];
@@ -225,7 +386,7 @@ index a32a2740..d9715d02 100644
 +
 +template <typename T>
 +bool PolyFisheyeCameraModel::ImgFromCam(
-+    const T* params, T u, T v, T w, T* x, T* y) {
++    const T* params, const T& u, const T& v, const T& w, T* x, T* y) {
 +  const T A11 = params[0];
 +  const T A22 = params[1];
 +  const T A12 = params[2];
@@ -239,12 +400,12 @@ index a32a2740..d9715d02 100644
 +  const T k7 = params[10];
 +
 +  T len = sqrt(u * u + v * v + w * w);
-+  u /= len;
-+  v /= len;
-+  w /= len;
++  T uu = u / len;
++  T vv = v / len;
++  T ww = w / len;
 +
-+  T theta = acos(w);
-+  T phi = atan2(v, u);
++  T theta = acos(ww);
++  T phi = atan2(vv, uu);
 +
 +  T r_sqr = r(k2, k3, k4, k5, k6, k7, theta);
 +
@@ -275,7 +436,7 @@ index a32a2740..d9715d02 100644
 +
 +template <typename T>
 +void PolyFisheyeCameraModel::Distortion(
-+    const T* extra_params, const T u, const T v, T* du, T* dv) {
++    const T* extra_params, const T& u, const T& v, T* du, T* dv) {
 +  throw std::runtime_error(
 +      "PolyFisheyeCameraModel does not support distortion.");
 +}
@@ -296,3 +457,119 @@ index db962e5d..b2e9899a 100644
      set(FAISS_ENABLE_PYTHON OFF)
      set(FAISS_ENABLE_MKL OFF)
      set(BUILD_TESTING OFF)
+diff --git a/vcpkg.json b/vcpkg.json
+deleted file mode 100644
+index a22ad745..00000000
+--- a/vcpkg.json
++++ /dev/null
+@@ -1,110 +0,0 @@
+-{
+-    "name": "colmap",
+-    "description": "COLMAP is a general-purpose Structure-from-Motion (SfM) and Multi-View Stereo (MVS) pipeline with a graphical and command-line interface. It offers a wide range of features for reconstruction of ordered and unordered image collections. The software is licensed under the new BSD license.",
+-    "homepage": "https://colmap.github.io/",
+-    "license": "BSD-3-Clause",
+-    "supports": "(linux | (windows & !static) | osx) & (x86 | x64 | arm64)",
+-    "dependencies": [
+-        "boost-algorithm",
+-        "boost-graph",
+-        "boost-heap",
+-        "boost-program-options",
+-        "boost-property-map",
+-        "boost-property-tree",
+-        {
+-            "name": "ceres",
+-            "features": [
+-                "lapack",
+-                "schur",
+-                "suitesparse"
+-            ]
+-        },
+-        "eigen3",
+-        "freeimage",
+-        "gflags",
+-        "glog",
+-        {
+-            "name": "jasper",
+-            "default-features": false
+-        },
+-        "metis",
+-        "sqlite3",
+-        {
+-            "name": "vcpkg-cmake",
+-            "host": true
+-        },
+-        {
+-            "name": "vcpkg-cmake-config",
+-            "host": true
+-        }
+-    ],
+-    "overrides": [
+-        {
+-            "name": "metis",
+-            "version": "2022-07-27"
+-        },
+-        {
+-            "name": "gklib",
+-            "version": "2023-03-27"
+-        }
+-    ],
+-    "default-features": [
+-        "gui",
+-        "download"
+-    ],
+-    "features": {
+-        "tests": {
+-            "description": "Build all tests.",
+-            "dependencies": [
+-                "gtest"
+-            ]
+-        },
+-        "cuda": {
+-            "description": "Build with CUDA support.",
+-            "dependencies": [
+-                "glew",
+-                "cuda"
+-            ]
+-        },
+-        "gui": {
+-            "description": "Build with GUI support.",
+-            "dependencies": [
+-                "glew",
+-                "qtbase"
+-            ]
+-        },
+-        "cgal": {
+-            "description": "Build with CGAL support.",
+-            "dependencies": [
+-                "cgal"
+-            ]
+-        },
+-        "download": {
+-            "description": "Build with download support.",
+-            "dependencies": [
+-                {
+-                    "name": "curl",
+-                    "features": [
+-                        "sspi"
+-                    ],
+-                    "platform": "windows"
+-                },
+-                {
+-                    "name": "curl",
+-                    "features": [
+-                        "openssl"
+-                    ],
+-                    "platform": "!windows"
+-                },
+-                {
+-                    "name": "cryptopp",
+-                    "platform": "windows & arm64"
+-                },
+-                {
+-                    "name": "openssl",
+-                    "platform": "!(windows & arm64)"
+-                }
+-            ]
+-        }
+-    }
+-}
