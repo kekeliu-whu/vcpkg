@@ -20,7 +20,7 @@ if ("gpu" IN_LIST FEATURES)
         "-DCMAKE_CUDA_COMPILER=${NVCC}"
         "-DCUDAToolkit_ROOT=${cuda_toolkit_root}"
     )
-    set(CUDA_ARCHITECTURES "61;70;75;80;86;89;120")
+    set(CUDA_ARCHITECTURES "61;75;86;89;120")
 endif()
 
 vcpkg_cmake_configure(

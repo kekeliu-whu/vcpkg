@@ -38,7 +38,7 @@ set(OPENMP_ENABLED ON)
 
 if("cuda" IN_LIST FEATURES)
     set(CUDA_ENABLED ON)
-    set(CUDA_ARCHITECTURES "61;70;75;80;86;89;120")
+    set(CUDA_ARCHITECTURES "61;75;86;89;120")
 endif()
 
 if("cuda-redist" IN_LIST FEATURES)

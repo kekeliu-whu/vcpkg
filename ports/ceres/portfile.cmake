@@ -41,7 +41,7 @@ endforeach()
 set(USE_CUDA OFF)
 if("cuda" IN_LIST FEATURES)
     set(USE_CUDA ON)
-    set(CUDA_ARCHITECTURES "61;70;75;80;86;89;120")
+    set(CUDA_ARCHITECTURES "61;75;86;89;120")
 endif()
 
 set(TARGET_OPTIONS )
