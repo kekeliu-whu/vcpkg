@@ -1874,7 +1874,7 @@
     },
     "colmap": {
       "baseline": "3.13.0",
-      "port-version": 0
+      "port-version": 1
     },
     "color-console": {
       "baseline": "2022-03-20",
@@ -2769,7 +2769,7 @@
       "port-version": 2
     },
     "faiss": {
-      "baseline": "1.12.666",
+      "baseline": "1.13.2",
       "port-version": 0
     },
     "fakeit": {
