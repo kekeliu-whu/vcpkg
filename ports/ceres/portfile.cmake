@@ -41,7 +41,7 @@ endforeach()
 set(USE_CUDA OFF)
 if("cuda" IN_LIST FEATURES)
     set(USE_CUDA ON)
-    set(CUDA_ARCHITECTURES "61;75;86;89;120")
+    set(CUDA_ARCHITECTURES "75-virtual;90-virtual")
 endif()
 
 set(TARGET_OPTIONS )
